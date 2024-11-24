@@ -13,6 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 library(tidyverse)
 library(tidymodels)
+library(knitr)
 ```
 
 
@@ -81,11 +82,13 @@ summary(model)
 
 ```{r}
 glance(model)
+
 # Data Visualization
 ggplot(data = model, aes(.fitted, .resid)) +
   geom_point() +
   geom_smooth(method = "lm") +
   labs(title = "Residuals vs Fitted")
+
 # Q-Q plot
 plot(model, which = 2)
 ```
@@ -104,16 +107,13 @@ gss16_test  <- testing(gss16_split)
 #### Exercise 2 (a)
 
 ```{r}
-# Data Splitting
-set.seed(1234)
-gss16_split <- initial_split(gss16_advfront)
-gss16_train <- training(gss16_split)
-gss16_test  <- testing(gss16_split)
 # Recipe
 gss16_rec_1 <- recipe(advfront ~ educ, data = gss16_train)
+
 # Model
 gss16_mod_1 <- logistic_reg() %>%
   set_engine("glm")
+
 # Workflow
 gss16_wflow_1 <- workflow() %>%
   add_recipe(gss16_rec_1) %>%
@@ -136,6 +136,7 @@ gss16_wflow_1 <- workflow() %>%
 # Fit model to training data
 gss16_fit_1 <- gss16_wflow_1 %>%
   fit(data = gss16_train)
+
 # Output
 tidy(gss16_fit_1)
 ```
@@ -147,7 +148,19 @@ tidy(gss16_fit_1)
 #### Exercise 3 (a)
 
 ```{r}
-# replace this with your code
+# Prediction
+gss16_pred <- gss16_fit_1 %>%
+  predict(gss16_test, type = "prob")
+
+# ROC curve
+gss16_pred <- gss16_pred %>%
+  bind_cols(gss16_test %>% select(advfront))
+roc_curve <- roc_curve(gss16_pred, .pred_Agree, truth = advfront, event_level = "second")
+autoplot(roc_curve)
+
+# Calculate AUC
+roc_auc <- roc_auc(gss16_pred, .pred_Agree, truth = advfront, event_level = "second")
+roc_auc
 ```
 
 *Your answer here*
@@ -155,10 +168,19 @@ tidy(gss16_fit_1)
 #### Exercise 3 (b)
 
 ```{r}
-# replace this with your code
+# cutoff of 0.85
+cutoff_prob <- 0.85
+gss16_pred %>%
+  mutate(
+    advfront_label = if_else(advfront == "Agree", "Agree", "Not agree"),
+    advfront_pred = if_else(.pred_Agree > cutoff_prob, "Agree", "Not agree")
+  ) %>%
+  count(advfront_pred, advfront_label) %>%
+  pivot_wider(names_from = advfront_label, values_from = n) %>%
+  kable(col.names = c("", "Not agree", "Agree"))
 ```
 
-*Your answer here*
+**
 
 ## Exercise 4: Logistic regression modelling and interpretation
 
@@ -173,7 +195,33 @@ tidy(gss16_fit_1)
 #### Exercise 4 (b)
   
 ```{r}
-# replace this with your code
+# New recipe
+gss16_rec_2 <- recipe(advfront ~ educ + polviews + wrkstat, data = gss16_train) %>%
+  step_dummy(all_nominal_predictors())
+
+# New model
+gss16_mod_2 <- logistic_reg() %>%
+  set_engine("glm")
+
+# New workflow
+gss16_wflow_2 <- workflow() %>%
+  add_recipe(gss16_rec_2) %>%
+  add_model(gss16_mod_2)
+
+# Fit and Predict
+gss16_fit_2 <- gss16_wflow_2 %>%
+  fit(data = gss16_train)
+gss16_pred_2 <- predict(gss16_fit_2, gss16_test, type = "prob")
+
+# ROC curve
+gss16_pred_2 <- gss16_pred_2 %>%
+  bind_cols(gss16_test %>% select(advfront))
+roc_curve_2 <- roc_curve(gss16_pred_2, .pred_Agree, truth = advfront, event_level = "second")
+autoplot(roc_curve_2)
+
+# Calculate AUC
+roc_auc_2 <- roc_auc(gss16_pred_2, .pred_Agree, truth = advfront, event_level = "second")
+roc_auc_2
 ```
 
 *Your answer here*
@@ -184,5 +232,5 @@ tidy(gss16_fit_1)
 # replace this with your code
 ```
 
-*Your answer here*
+*Generally, a higher AUC indicates better performance. Hence, gss16_fit_1 is better.*
 
